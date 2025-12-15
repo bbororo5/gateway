@@ -1,0 +1,24 @@
+server:
+  port: 8080
+
+middlewares:
+  - name: "logger"
+    enabled: true
+    config:
+      level: "DEBUG"
+      # Additional logger specific configs will go here
+
+  - name: "rate_limit"
+    enabled: true
+    config:
+      default_rps: 10
+      default_burst: 20
+      # Route specific limits will be handled by the middleware logic
+
+  - name: "router"
+    enabled: true
+    config:
+      routes:
+        - name: "user-service"
+          path_prefix: "/api/users"
+          upstream: "http://localhost:8081"
