@@ -1,24 +1,33 @@
+# [전역 서버 설정]
 server:
   port: 8080
+  read_timeout: 5s
+  write_timeout: 10s
+  shutdown_timeout: 5s
 
-middlewares:
-  - name: "logger"
-    enabled: true
-    config:
-      level: "DEBUG"
-      # Additional logger specific configs will go here
+# [서비스 디스커버리 설정]
+discovery:
+  provider: "mock" # "mock", "consul", "etcd" 등
+  address: "localhost:8500" # 실제 프로바이더 주소
+  watch_interval: 10s
 
-  - name: "rate_limit"
-    enabled: true
-    config:
-      default_rps: 10
-      default_burst: 20
-      # Route specific limits will be handled by the middleware logic
+# [미들웨어 설정]
+# 게이트웨이 전체에 적용될 정책을 정의합니다.
+middleware:
+  # 글로벌 미들웨어 활성화 순서 (순서가 중요함)
+  # 요청 흐름: Client -> Logger -> Auth -> RateLimit -> Engine
+  global_enabled:
+    - "logging"
+    - "auth"
+    - "ratelimit"
 
-  - name: "router"
+  # 각 미들웨어별 세부 설정
+  ratelimit:
     enabled: true
-    config:
-      routes:
-        - name: "user-service"
-          path_prefix: "/api/users"
-          upstream: "http://localhost:8081"
+    requests_per_second: 100
+    burst: 20
+
+  auth:
+    enabled: true
+    api_key_header: "X-API-Key"
+    internal_signing_key: "my-very-secure-internal-secret-key"

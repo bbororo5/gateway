@@ -1,7 +1,7 @@
 package engine
 
 import (
-	"log"
+	"log/slog"
 	"net/http"
 	"strings"
 	"sync"
@@ -22,11 +22,21 @@ func (e *Engine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 
-	for pathPrefix, lb := range e.loadBalancers {
-		if strings.HasPrefix(r.URL.Path, pathPrefix) {
-			lb.ServeHTTP(w, r)
-			return
+	var matchedLB *LoadBalancer
+	matchedLen := 0
+
+	for prefix, lb := range e.loadBalancers {
+		if strings.HasPrefix(r.URL.Path, prefix) {
+			if len(prefix) > matchedLen {
+				matchedLB = lb
+				matchedLen = len(prefix)
+			}
 		}
+	}
+
+	if matchedLB != nil {
+		matchedLB.ServeHTTP(w, r)
+		return
 	}
 
 	http.Error(w, "Service Not Found", http.StatusNotFound)
@@ -39,11 +49,12 @@ func (e *Engine) UpdateServiceEndpoints(pathPrefix string, endpoints []string, s
 
 	if exists {
 		lb.UpdateTargets(endpoints)
-		log.Printf("[Engine] Updated existing service %s with %d endpoints", pathPrefix, len(endpoints))
+		slog.Info("Updated existing service", "service", pathPrefix, "endpoints_count", len(endpoints))
 		return nil
 	}
 
 	e.mu.Lock()
+	defer e.mu.Unlock()
 
 	lb, exists = e.loadBalancers[pathPrefix]
 	if !exists {
@@ -51,13 +62,25 @@ func (e *Engine) UpdateServiceEndpoints(pathPrefix string, endpoints []string, s
 		if useStrategy == nil {
 			useStrategy = &RoundRobinStrategy{}
 		}
-		lb = NewLoadBalancer(useStrategy)
-		e.loadBalancers[pathPrefix] = lb
-	}
-	e.mu.Unlock()
 
-	lb.UpdateTargets(endpoints)
-	log.Printf("[Engine] Created & Updated service %s with %d endpoints", pathPrefix, len(endpoints))
+		lb = NewLoadBalancer(useStrategy)
+		lb.UpdateTargets(endpoints)
+
+		e.loadBalancers[pathPrefix] = lb
+		slog.Info("Created new service", "service", pathPrefix, "endpoints_count", len(endpoints))
+	} else {
+		lb.UpdateTargets(endpoints)
+	}
 
 	return nil
+}
+
+func (e *Engine) DeleteService(pathPrefix string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	if _, exists := e.loadBalancers[pathPrefix]; exists {
+		delete(e.loadBalancers, pathPrefix)
+		slog.Info("Deleted service", "service", pathPrefix)
+	}
 }

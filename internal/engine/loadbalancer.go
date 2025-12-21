@@ -1,7 +1,7 @@
 package engine
 
 import (
-	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -38,7 +38,7 @@ func (lb *LoadBalancer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if idx < 0 || idx >= len(targets) {
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		log.Printf("[LoadBalancer] Strategy returned invalid index: %d, targets: %d", idx, len(targets))
+		slog.Error("Strategy returned invalid index", "index", idx, "targets_count", len(targets))
 		return
 	}
 
@@ -52,7 +52,7 @@ func (lb *LoadBalancer) UpdateTargets(targetURLs []string) {
 	for _, targetURL := range targetURLs {
 		proxy, err := lb.createProxy(targetURL)
 		if err != nil {
-			log.Printf("[LoadBalancer] Skipping invalid URL %s: %v", targetURL, err)
+			slog.Warn("Skipping invalid target URL", "url", targetURL, "error", err)
 			continue
 		}
 		newTargets = append(newTargets, proxy)
@@ -72,7 +72,7 @@ func (lb *LoadBalancer) createProxy(targetURL string) (*httputil.ReverseProxy, e
 	proxy := httputil.NewSingleHostReverseProxy(parsedURL)
 
 	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
-		log.Printf("[Proxy Error] Target: %s, Error: %v", targetURL, err)
+		slog.Error("Proxy error", "target", targetURL, "error", err)
 		http.Error(w, "Bad Gateway", http.StatusBadGateway)
 	}
 
