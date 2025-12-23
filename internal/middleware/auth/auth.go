@@ -17,12 +17,6 @@ type InternalClaims struct {
 	jwt.RegisteredClaims
 }
 
-type AuthConfig struct {
-	Enabled      bool   `yaml:"enabled"`
-	ApiKeyHeader string `yaml:"api_key_header"`
-	InternalSigningKey string `yaml:"internal_signing_key"`
-}
-
 func New(cfg config.AuthConfig) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
