@@ -1,9 +1,11 @@
 package ratelimit
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 )
 
 // Mock용 Request 생성 헬퍼
@@ -83,12 +85,35 @@ func TestRateLimiter_Sharding(t *testing.T) {
 	limiter.getLimiter("192.168.0.2").Allow()
 }
 
-func TestRateLimiter_Cleanup(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping cleanup test in short mode")
+func TestRateLimiter_CapsShardAndReclaimsExpiredEntries(t *testing.T) {
+	limiter := New(1, 1)
+	var target *shard
+	addresses := make([]string, 0, clientsLimit+1)
+	for n := 0; len(addresses) <= clientsLimit; n++ {
+		key := fmt.Sprintf("client-%d", n)
+		s := limiter.getShard(key)
+		if target == nil {
+			target = s
+		}
+		if s == target {
+			addresses = append(addresses, key)
+		}
 	}
-
-	// Cleanup 주기를 짧게 조작할 수 없으므로, 로직 검증만 하거나
-	// 실제로는 내부 메서드를 export해서 테스트해야 함.
-	// 여기서는 생략.
+	for _, key := range addresses[:clientsLimit] {
+		if !limiter.getLimiter(key).Allow() {
+			t.Fatal("new client denied below limit")
+		}
+	}
+	overflow := addresses[clientsLimit]
+	if limiter.getLimiter(overflow).Allow() {
+		t.Fatal("new client bypassed the shard limit")
+	}
+	target.clients[addresses[0]].lastSeen = time.Now().Add(-clientTTL)
+	target.nextSweep = time.Time{}
+	if !limiter.getLimiter(overflow).Allow() {
+		t.Fatal("expired entries did not free space")
+	}
+	if len(target.clients) != clientsLimit {
+		t.Fatalf("size = %d, want %d", len(target.clients), clientsLimit)
+	}
 }
