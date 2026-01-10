@@ -1,33 +1,25 @@
-# [전역 서버 설정]
+# Local demo. Use the production example for environment-backed API keys.
 server:
   port: 8080
+  admin_address: 127.0.0.1:9090
   read_timeout: 5s
+  read_header_timeout: 3s
   write_timeout: 10s
+  idle_timeout: 1m
   shutdown_timeout: 5s
 
-# [서비스 디스커버리 설정]
 discovery:
-  provider: "mock" # "mock", "consul", "etcd" 등
-  address: "localhost:8500" # 실제 프로바이더 주소
+  provider: mock
   watch_interval: 10s
 
-# [미들웨어 설정]
-# 게이트웨이 전체에 적용될 정책을 정의합니다.
 middleware:
-  # 글로벌 미들웨어 활성화 순서 (순서가 중요함)
-  # 요청 흐름: Client -> Logger -> Auth -> RateLimit -> Engine
-  global_enabled:
-    - "logging"
-    - "auth"
-    - "ratelimit"
-
-  # 각 미들웨어별 세부 설정
+  global_enabled: [logging, auth, ratelimit]
   ratelimit:
     enabled: true
     requests_per_second: 100
     burst: 20
-
   auth:
     enabled: true
-    api_key_header: "X-API-Key"
-    internal_signing_key: "my-very-secure-internal-secret-key"
+    api_key_header: X-API-Key
+    demo_credentials: true
+    internal_signing_key: local-demo-only-not-a-production-key
