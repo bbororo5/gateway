@@ -7,58 +7,51 @@ import (
 	"github.com/jeonseon-ung/gateway/internal/discovery"
 )
 
-type MockProvider struct {
-	events chan discovery.Event
-}
+type MockProvider struct{}
 
 func New() *MockProvider {
-	return &MockProvider{
-		events: make(chan discovery.Event, 10),
-	}
+	return &MockProvider{}
 }
 
 func (m *MockProvider) Watch(ctx context.Context) (<-chan discovery.Event, error) {
+	events := make(chan discovery.Event, 1)
 	go func() {
-		m.events <- discovery.Event{
-			Type:      discovery.EventAdd,
-			Service:   "/api/v1",
-			Endpoints: []string{"http://localhost:8081", "http://localhost:8082"},
+		defer close(events)
+		endpoints := []string{"http://localhost:8081", "http://localhost:8082"}
+		send := func(kind discovery.EventType, urls []string) bool {
+			select {
+			case events <- discovery.Event{Type: kind, Service: "/api/v1", Endpoints: urls}:
+				return true
+			case <-ctx.Done():
+				return false
+			}
 		}
-
+		if !send(discovery.EventAdd, endpoints) {
+			return
+		}
 		ticker := time.NewTicker(10 * time.Second)
 		defer ticker.Stop()
-
-		toggle := false
-
+		expanded := append(append([]string(nil), endpoints...), "http://localhost:8083")
+		next := expanded
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				var endpoints []string
-
-				if toggle {
-					// 짝수 틱
-					endpoints = []string{"http://localhost:8081", "http://localhost:8082"}
+				if !send(discovery.EventUpdate, next) {
+					return
+				}
+				if len(next) == len(expanded) {
+					next = endpoints
 				} else {
-					// 홀수 틱
-					endpoints = []string{"http://localhost:8081", "http://localhost:8082", "http://localhost:8083"}
+					next = expanded
 				}
-
-				m.events <- discovery.Event{
-					Type:      discovery.EventUpdate,
-					Service:   "/api/v1",
-					Endpoints: endpoints,
-				}
-
-				toggle = !toggle
 			}
 		}
 	}()
-	return m.events, nil
+	return events, nil
 }
 
 func (m *MockProvider) Close() error {
-	close(m.events)
 	return nil
 }
