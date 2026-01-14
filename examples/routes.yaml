@@ -1,0 +1,10 @@
+routes:
+  - prefix: /api/v1
+    strategy: round_robin
+    upstreams:
+      - http://127.0.0.1:8081
+      - http://127.0.0.1:8082
+    response_header_timeout: 2s
+    circuit:
+      failure_threshold: 3
+      cooldown: 15s

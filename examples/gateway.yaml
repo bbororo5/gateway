@@ -1,0 +1,22 @@
+server:
+  port: 8080
+  admin_address: 127.0.0.1:9090
+  # trusted_proxies: [192.0.2.10/32]
+discovery:
+  provider: file
+  route_file: routes.yaml
+  watch_interval: 2s
+middleware:
+  global_enabled: [logging, ratelimit, auth]
+  ratelimit:
+    enabled: true
+    requests_per_second: 100
+    burst: 20
+  auth:
+    enabled: true
+    api_key_header: X-API-Key
+    signing_key_env: GATEWAY_SIGNING_KEY
+    credentials:
+      - key_env: GATEWAY_CLIENT_KEY
+        user_id: catalog-client
+        role: reader
