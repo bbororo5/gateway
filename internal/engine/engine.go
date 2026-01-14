@@ -8,13 +8,19 @@ import (
 	"sync"
 )
 
+type routeEntry struct {
+	balancer   *LoadBalancer
+	configured *Route
+}
+
 type Engine struct {
-	mu            sync.RWMutex
-	loadBalancers map[string]*LoadBalancer
+	updates sync.Mutex // Serializes writers without blocking requests during snapshot preparation.
+	mu      sync.RWMutex
+	routes  map[string]routeEntry
 }
 
 func New() *Engine {
-	return &Engine{loadBalancers: make(map[string]*LoadBalancer)}
+	return &Engine{routes: make(map[string]routeEntry)}
 }
 
 func (e *Engine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -25,9 +31,9 @@ func (e *Engine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	e.mu.RLock()
 	var matched *LoadBalancer
 	longest := 0
-	for prefix, lb := range e.loadBalancers {
+	for prefix, entry := range e.routes {
 		if len(prefix) > longest && (prefix == "/" || r.URL.Path == prefix || strings.HasPrefix(r.URL.Path, prefix+"/")) {
-			matched = lb
+			matched = entry.balancer
 			longest = len(prefix)
 		}
 	}
@@ -43,7 +49,8 @@ func (e *Engine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (e *Engine) Ready() bool {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
-	for _, lb := range e.loadBalancers {
+	for _, entry := range e.routes {
+		lb := entry.balancer
 		lb.mu.RLock()
 		available := len(lb.targets) > 0
 		lb.mu.RUnlock()
@@ -58,9 +65,11 @@ func (e *Engine) UpdateServiceEndpoints(prefix string, endpoints []string, strat
 	if !validPrefix(prefix) {
 		return fmt.Errorf("invalid route prefix %q", prefix)
 	}
+	e.updates.Lock()
+	defer e.updates.Unlock()
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	lb := e.loadBalancers[prefix]
+	lb := e.routes[prefix].balancer
 	if lb == nil {
 		if strategy == nil {
 			strategy = &RoundRobinStrategy{}
@@ -70,13 +79,15 @@ func (e *Engine) UpdateServiceEndpoints(prefix string, endpoints []string, strat
 	if err := lb.UpdateTargets(endpoints); err != nil {
 		return fmt.Errorf("update route %q: %w", prefix, err)
 	}
-	e.loadBalancers[prefix] = lb
+	e.routes[prefix] = routeEntry{balancer: lb}
 	return nil
 }
 
 func (e *Engine) DeleteService(prefix string) {
+	e.updates.Lock()
+	defer e.updates.Unlock()
 	e.mu.Lock()
-	delete(e.loadBalancers, prefix)
+	delete(e.routes, prefix)
 	e.mu.Unlock()
 }
 

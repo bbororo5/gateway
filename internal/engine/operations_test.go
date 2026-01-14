@@ -129,3 +129,46 @@ func TestCircuitSkipsFailedUpstreamWithoutReplayingRequests(t *testing.T) {
 		t.Fatalf("bad upstream received %d requests, want 1", calls)
 	}
 }
+
+func TestReplaceRoutesPreservesUnchangedCircuit(t *testing.T) {
+	var calls atomic.Int64
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls.Add(1)
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer backend.Close()
+
+	eng := New()
+	route := Route{Prefix: "/a", Upstreams: []string{backend.URL}, Circuit: CircuitPolicy{Threshold: 1, Cooldown: time.Minute}}
+	replace := func(routes ...Route) {
+		t.Helper()
+		if err := eng.ReplaceRoutes(routes); err != nil {
+			t.Fatal(err)
+		}
+	}
+	request := func(want int) {
+		t.Helper()
+		w := httptest.NewRecorder()
+		eng.ServeHTTP(w, httptest.NewRequest("GET", "/a", nil))
+		if w.Code != want {
+			t.Fatalf("status = %d, want %d", w.Code, want)
+		}
+	}
+
+	replace(route)
+	request(http.StatusInternalServerError)
+	request(http.StatusServiceUnavailable)
+
+	other := Route{Prefix: "/b", Upstreams: []string{backend.URL}}
+	route.Strategy = "round_robin"
+	route.ResponseHeaderTimeout = 5 * time.Second
+	replace(other, route)
+	request(http.StatusServiceUnavailable)
+	if got := calls.Load(); got != 1 {
+		t.Fatalf("unchanged route reached the open upstream: %d requests", got)
+	}
+
+	route.Circuit.Threshold = 2
+	replace(other, route)
+	request(http.StatusInternalServerError)
+}

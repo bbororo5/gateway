@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"net/http"
+	"slices"
 	"time"
 )
 
@@ -14,23 +15,47 @@ type Route struct {
 	Circuit               CircuitPolicy `yaml:"circuit"`
 }
 
-// ReplaceRoutes validates and builds the whole table before publishing it.
+// ReplaceRoutes validates the whole snapshot and reuses unchanged routes.
 func (e *Engine) ReplaceRoutes(routes []Route) error {
-	next := make(map[string]*LoadBalancer, len(routes))
+	e.updates.Lock()
+	defer e.updates.Unlock()
+
+	// Other writers are excluded, so the current table is read-only during preparation.
+	next := make(map[string]routeEntry, len(routes))
 	for _, route := range routes {
 		if _, ok := next[route.Prefix]; ok {
 			return fmt.Errorf("duplicate route prefix %q", route.Prefix)
+		}
+		if route.Strategy == "" {
+			route.Strategy = "round_robin"
+		}
+		if route.ResponseHeaderTimeout == 0 {
+			route.ResponseHeaderTimeout = 5 * time.Second
+		}
+		existing := e.routes[route.Prefix]
+		if existing.configured != nil && existing.configured.sameSettings(route) {
+			next[route.Prefix] = existing
+			continue
 		}
 		lb, err := buildRoute(route)
 		if err != nil {
 			return fmt.Errorf("route %q: %w", route.Prefix, err)
 		}
-		next[route.Prefix] = lb
+		route.Upstreams = slices.Clone(route.Upstreams)
+		next[route.Prefix] = routeEntry{balancer: lb, configured: &route}
 	}
+
 	e.mu.Lock()
-	e.loadBalancers = next
+	e.routes = next
 	e.mu.Unlock()
 	return nil
+}
+
+func (route Route) sameSettings(other Route) bool {
+	return route.Strategy == other.Strategy &&
+		route.ResponseHeaderTimeout == other.ResponseHeaderTimeout &&
+		route.Circuit == other.Circuit &&
+		slices.Equal(route.Upstreams, other.Upstreams)
 }
 
 func buildRoute(route Route) (*LoadBalancer, error) {
@@ -39,7 +64,7 @@ func buildRoute(route Route) (*LoadBalancer, error) {
 	}
 	var strategy BalancerStrategy
 	switch route.Strategy {
-	case "", "round_robin":
+	case "round_robin":
 		strategy = &RoundRobinStrategy{}
 	case "ip_hash":
 		strategy = &HashStrategy{}
@@ -62,9 +87,6 @@ func buildRoute(route Route) (*LoadBalancer, error) {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.Proxy = nil
 	transport.ResponseHeaderTimeout = route.ResponseHeaderTimeout
-	if transport.ResponseHeaderTimeout == 0 {
-		transport.ResponseHeaderTimeout = 5 * time.Second
-	}
 	lb.transport = transport
 	if err := lb.UpdateTargets(route.Upstreams); err != nil {
 		return nil, err
