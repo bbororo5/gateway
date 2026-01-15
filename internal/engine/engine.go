@@ -28,22 +28,27 @@ func (e *Engine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid request path", http.StatusBadRequest)
 		return
 	}
-	e.mu.RLock()
-	var matched *LoadBalancer
-	longest := 0
-	for prefix, entry := range e.routes {
-		if len(prefix) > longest && (prefix == "/" || r.URL.Path == prefix || strings.HasPrefix(r.URL.Path, prefix+"/")) {
-			matched = entry.balancer
-			longest = len(prefix)
-		}
-	}
-	e.mu.RUnlock()
+	matched := e.match(r.URL.Path)
 
 	if matched == nil {
 		http.Error(w, "Service Not Found", http.StatusNotFound)
 		return
 	}
 	matched.ServeHTTP(w, r)
+}
+
+// match visits the exact path, then its parents, so lookup depends on path depth.
+func (e *Engine) match(requestPath string) *LoadBalancer {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+
+	for prefix := strings.TrimSuffix(requestPath, "/"); prefix != ""; {
+		if entry := e.routes[prefix]; entry.balancer != nil {
+			return entry.balancer
+		}
+		prefix = prefix[:strings.LastIndexByte(prefix, '/')]
+	}
+	return e.routes["/"].balancer
 }
 
 func (e *Engine) Ready() bool {
