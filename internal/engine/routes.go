@@ -22,6 +22,7 @@ func (e *Engine) ReplaceRoutes(routes []Route) error {
 
 	// Other writers are excluded, so the current table is read-only during preparation.
 	next := make(map[string]routeEntry, len(routes))
+	transports := make(map[time.Duration]*http.Transport)
 	for _, route := range routes {
 		if _, ok := next[route.Prefix]; ok {
 			return fmt.Errorf("duplicate route prefix %q", route.Prefix)
@@ -32,12 +33,23 @@ func (e *Engine) ReplaceRoutes(routes []Route) error {
 		if route.ResponseHeaderTimeout == 0 {
 			route.ResponseHeaderTimeout = 5 * time.Second
 		}
+		if route.ResponseHeaderTimeout < 0 {
+			return fmt.Errorf("route %q: response_header_timeout cannot be negative", route.Prefix)
+		}
+		transport := transports[route.ResponseHeaderTimeout]
+		if transport == nil {
+			transport = e.transports[route.ResponseHeaderTimeout]
+			if transport == nil {
+				transport = newUpstreamTransport(route.ResponseHeaderTimeout)
+			}
+			transports[route.ResponseHeaderTimeout] = transport
+		}
 		existing := e.routes[route.Prefix]
 		if existing.configured != nil && existing.configured.sameSettings(route) {
 			next[route.Prefix] = existing
 			continue
 		}
-		lb, err := buildRoute(route)
+		lb, err := buildRoute(route, transport)
 		if err != nil {
 			return fmt.Errorf("route %q: %w", route.Prefix, err)
 		}
@@ -48,6 +60,12 @@ func (e *Engine) ReplaceRoutes(routes []Route) error {
 	e.mu.Lock()
 	e.routes = next
 	e.mu.Unlock()
+	for timeout, transport := range e.transports {
+		if transports[timeout] == nil {
+			transport.CloseIdleConnections()
+		}
+	}
+	e.transports = transports
 	return nil
 }
 
@@ -58,7 +76,7 @@ func (route Route) sameSettings(other Route) bool {
 		slices.Equal(route.Upstreams, other.Upstreams)
 }
 
-func buildRoute(route Route) (*LoadBalancer, error) {
+func buildRoute(route Route, transport http.RoundTripper) (*LoadBalancer, error) {
 	if !validPrefix(route.Prefix) || len(route.Upstreams) == 0 {
 		return nil, fmt.Errorf("a canonical path prefix and at least one upstream are required")
 	}
@@ -73,9 +91,6 @@ func buildRoute(route Route) (*LoadBalancer, error) {
 	default:
 		return nil, fmt.Errorf("unknown strategy %q", route.Strategy)
 	}
-	if route.ResponseHeaderTimeout < 0 {
-		return nil, fmt.Errorf("response_header_timeout cannot be negative")
-	}
 	policy := route.Circuit
 	if policy.Threshold < 0 || policy.Cooldown < 0 || (policy.Threshold == 0) != (policy.Cooldown == 0) {
 		return nil, fmt.Errorf("failure_threshold and cooldown must both be positive when configured")
@@ -83,10 +98,6 @@ func buildRoute(route Route) (*LoadBalancer, error) {
 
 	lb := NewLoadBalancer(strategy)
 	lb.policy = policy
-	// Configured routes have bounded waits for the upstream response headers.
-	transport := http.DefaultTransport.(*http.Transport).Clone()
-	transport.Proxy = nil
-	transport.ResponseHeaderTimeout = route.ResponseHeaderTimeout
 	lb.transport = transport
 	if err := lb.UpdateTargets(route.Upstreams); err != nil {
 		return nil, err

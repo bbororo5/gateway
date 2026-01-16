@@ -6,6 +6,7 @@ import (
 	"path"
 	"strings"
 	"sync"
+	"time"
 )
 
 type routeEntry struct {
@@ -14,9 +15,10 @@ type routeEntry struct {
 }
 
 type Engine struct {
-	updates sync.Mutex // Serializes writers without blocking requests during snapshot preparation.
-	mu      sync.RWMutex
-	routes  map[string]routeEntry
+	updates    sync.Mutex // Serializes writers without blocking requests during snapshot preparation.
+	mu         sync.RWMutex
+	routes     map[string]routeEntry
+	transports map[time.Duration]*http.Transport
 }
 
 func New() *Engine {
