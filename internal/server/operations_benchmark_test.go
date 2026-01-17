@@ -17,14 +17,6 @@ import (
 // BenchmarkGatewayLoad exercises client, gateway, and upstream over loopback.
 // All cases request the same route to isolate the cost of table size.
 func BenchmarkGatewayLoad(b *testing.B) {
-	// Keep sockets reusable across all workers so TCP port exhaustion does
-	// not dominate the route-count and metrics comparison.
-	defaultTransport := http.DefaultTransport
-	upstreamTransport := defaultTransport.(*http.Transport).Clone()
-	upstreamTransport.MaxIdleConnsPerHost = 128
-	http.DefaultTransport = upstreamTransport
-	b.Cleanup(func() { http.DefaultTransport = defaultTransport })
-
 	for _, count := range []int{10, 100, 1000, 5000} {
 		for _, metrics := range []bool{false, true} {
 			b.Run(fmt.Sprintf("routes=%d/metrics=%t", count, metrics), func(b *testing.B) {
