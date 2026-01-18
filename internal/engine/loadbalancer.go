@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"slices"
 	"sync"
 	"time"
 
@@ -14,11 +15,13 @@ import (
 )
 
 type LoadBalancer struct {
-	mu        sync.RWMutex
-	targets   []*upstream
-	strategy  BalancerStrategy
-	transport http.RoundTripper
-	policy    CircuitPolicy
+	mu          sync.RWMutex
+	targets     []*upstream
+	strategy    BalancerStrategy
+	transport   http.RoundTripper
+	policy      CircuitPolicy
+	methods     []string
+	allowHeader string
 }
 
 type upstream struct {
@@ -40,6 +43,13 @@ func NewLoadBalancer(strategy BalancerStrategy) *LoadBalancer {
 }
 
 func (lb *LoadBalancer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if len(lb.methods) > 0 {
+		if _, allowed := slices.BinarySearch(lb.methods, r.Method); !allowed {
+			w.Header().Set("Allow", lb.allowHeader)
+			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+			return
+		}
+	}
 	lb.mu.RLock()
 	targets := lb.targets
 	lb.mu.RUnlock()

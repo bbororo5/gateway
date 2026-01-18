@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
+	"strings"
 	"time"
 )
 
@@ -12,6 +13,7 @@ type Route struct {
 	Upstreams             []string      `yaml:"upstreams"`
 	Strategy              string        `yaml:"strategy"`
 	ResponseHeaderTimeout time.Duration `yaml:"response_header_timeout"`
+	AllowedMethods        []string      `yaml:"allowed_methods"`
 	Circuit               CircuitPolicy `yaml:"circuit"`
 }
 
@@ -44,6 +46,11 @@ func (e *Engine) ReplaceRoutes(routes []Route) error {
 			}
 			transports[route.ResponseHeaderTimeout] = transport
 		}
+		methods, err := normalizeMethods(route.AllowedMethods)
+		if err != nil {
+			return fmt.Errorf("route %q: %w", route.Prefix, err)
+		}
+		route.AllowedMethods = methods
 		existing := e.routes[route.Prefix]
 		if existing.configured != nil && existing.configured.sameSettings(route) {
 			next[route.Prefix] = existing
@@ -73,6 +80,7 @@ func (route Route) sameSettings(other Route) bool {
 	return route.Strategy == other.Strategy &&
 		route.ResponseHeaderTimeout == other.ResponseHeaderTimeout &&
 		route.Circuit == other.Circuit &&
+		slices.Equal(route.AllowedMethods, other.AllowedMethods) &&
 		slices.Equal(route.Upstreams, other.Upstreams)
 }
 
@@ -98,6 +106,8 @@ func buildRoute(route Route, transport http.RoundTripper) (*LoadBalancer, error)
 
 	lb := NewLoadBalancer(strategy)
 	lb.policy = policy
+	lb.methods = route.AllowedMethods
+	lb.allowHeader = strings.Join(route.AllowedMethods, ", ")
 	lb.transport = transport
 	if err := lb.UpdateTargets(route.Upstreams); err != nil {
 		return nil, err
