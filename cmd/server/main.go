@@ -20,36 +20,38 @@ import (
 
 func main() {
 	configPath := flag.String("config", "config.yaml", "gateway configuration file")
+	checkOnly := flag.Bool("check-config", false, "validate configuration and routes without listening")
 	flag.Parse()
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	if err := run(ctx, *configPath); err != nil {
+	if err := run(ctx, *configPath, *checkOnly); err != nil {
 		slog.Error("Gateway exited with an error", "error", err)
 		os.Exit(1)
 	}
 }
 
-func run(ctx context.Context, configPath string) error {
+func run(ctx context.Context, configPath string, checkOnly bool) error {
 	cfg, err := config.Load(configPath)
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
 	}
 
 	eng := engine.New()
+	watcher, err := configuredRouteFile(eng, cfg, configPath)
+	if err != nil {
+		return err
+	}
+	if checkOnly {
+		slog.Info("Gateway configuration is valid")
+		return nil
+	}
+
 	watchCtx, cancelWatch := context.WithCancel(ctx)
 	defer cancelWatch()
 	watchDone := make(chan error, 1)
-	if cfg.Discovery.Provider == "file" {
-		path := cfg.Discovery.RouteFile
-		if !filepath.IsAbs(path) {
-			path = filepath.Join(filepath.Dir(configPath), path)
-		}
-		watcher := syncer.NewRouteFile(eng, path)
-		if err := watcher.Reload(); err != nil {
-			return fmt.Errorf("load initial route table: %w", err)
-		}
+	if watcher != nil {
 		go func() {
 			watcher.Watch(watchCtx, cfg.Discovery.WatchInterval)
 			watchDone <- nil
@@ -80,4 +82,19 @@ func run(ctx context.Context, configPath string) error {
 		err = errors.Join(err, <-watchDone)
 	}
 	return err
+}
+
+func configuredRouteFile(eng *engine.Engine, cfg *config.Config, configPath string) (*syncer.RouteFile, error) {
+	if cfg.Discovery.Provider != "file" {
+		return nil, nil
+	}
+	path := cfg.Discovery.RouteFile
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(filepath.Dir(configPath), path)
+	}
+	watcher := syncer.NewRouteFile(eng, path)
+	if err := watcher.Reload(); err != nil {
+		return nil, fmt.Errorf("load initial route table: %w", err)
+	}
+	return watcher, nil
 }
