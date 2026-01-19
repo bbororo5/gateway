@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -64,6 +65,13 @@ func (s *Server) adminHandler(eng *engine.Engine, metrics *httpstats.Metrics) ht
 		w.WriteHeader(http.StatusOK)
 	})
 	mux.Handle("GET /metrics", metrics)
+	mux.HandleFunc("GET /routes", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Cache-Control", "no-store")
+		if err := json.NewEncoder(w).Encode(eng.RouteStatuses()); err != nil {
+			slog.Debug("Failed to write route diagnostics", "error", err)
+		}
+	})
 	return mux
 }
 
