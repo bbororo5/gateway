@@ -76,3 +76,24 @@ func (c *circuit) record(generation uint64, result outcome, now time.Time) {
 		}
 	}
 }
+
+type circuitState uint8
+
+const (
+	circuitClosed circuitState = iota
+	circuitOpen
+	circuitHalfOpen
+)
+
+func (c *circuit) state(now time.Time) circuitState {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	switch {
+	case c.retryAfter.IsZero():
+		return circuitClosed
+	case now.Before(c.retryAfter):
+		return circuitOpen
+	default:
+		return circuitHalfOpen
+	}
+}
