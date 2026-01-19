@@ -22,6 +22,7 @@ type LoadBalancer struct {
 	policy      CircuitPolicy
 	methods     []string
 	allowHeader string
+	stripPrefix string
 }
 
 type upstream struct {
@@ -133,6 +134,11 @@ func (lb *LoadBalancer) createUpstream(address string) (*upstream, error) {
 			return resp, err
 		}),
 		Rewrite: func(pr *httputil.ProxyRequest) {
+			pr.Out.Header.Del("X-Forwarded-Prefix")
+			if lb.stripPrefix != "" {
+				stripRoutePrefix(pr.Out.URL, lb.stripPrefix)
+				pr.Out.Header.Set("X-Forwarded-Prefix", (&url.URL{Path: lb.stripPrefix}).EscapedPath())
+			}
 			pr.SetURL(parsed)
 			pr.Out.Host = pr.In.Host
 			pr.SetXForwarded()

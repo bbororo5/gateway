@@ -13,6 +13,7 @@ type Route struct {
 	Upstreams             []string      `yaml:"upstreams"`
 	Strategy              string        `yaml:"strategy"`
 	ResponseHeaderTimeout time.Duration `yaml:"response_header_timeout"`
+	StripPrefix           bool          `yaml:"strip_prefix"`
 	AllowedMethods        []string      `yaml:"allowed_methods"`
 	Circuit               CircuitPolicy `yaml:"circuit"`
 }
@@ -80,6 +81,7 @@ func (route Route) sameSettings(other Route) bool {
 	return route.Strategy == other.Strategy &&
 		route.ResponseHeaderTimeout == other.ResponseHeaderTimeout &&
 		route.Circuit == other.Circuit &&
+		route.StripPrefix == other.StripPrefix &&
 		slices.Equal(route.AllowedMethods, other.AllowedMethods) &&
 		slices.Equal(route.Upstreams, other.Upstreams)
 }
@@ -106,6 +108,9 @@ func buildRoute(route Route, transport http.RoundTripper) (*LoadBalancer, error)
 
 	lb := NewLoadBalancer(strategy)
 	lb.policy = policy
+	if route.StripPrefix && route.Prefix != "/" {
+		lb.stripPrefix = route.Prefix
+	}
 	lb.methods = route.AllowedMethods
 	lb.allowHeader = strings.Join(route.AllowedMethods, ", ")
 	lb.transport = transport
