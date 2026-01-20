@@ -19,3 +19,12 @@ func newUpstreamTransport(headerTimeout time.Duration) *http.Transport {
 		ResponseHeaderTimeout: headerTimeout,
 	}
 }
+
+// CloseIdleConnections releases pooled sockets when the gateway has finished draining.
+func (e *Engine) CloseIdleConnections() {
+	e.updates.Lock()
+	defer e.updates.Unlock()
+	for _, transport := range e.transports {
+		transport.CloseIdleConnections()
+	}
+}

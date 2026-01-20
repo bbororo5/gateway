@@ -39,6 +39,7 @@ func run(ctx context.Context, configPath string, checkOnly bool) error {
 	}
 
 	eng := engine.New()
+	defer eng.CloseIdleConnections()
 	watcher, err := configuredRouteFile(eng, cfg, configPath)
 	if err != nil {
 		return err
