@@ -16,6 +16,7 @@ func TestRouteConfigurationRejectsInvalidSnapshots(t *testing.T) {
 		{"upstream credentials", Route{Prefix: "/api", Upstreams: []string{"http://name:secret@localhost"}}, "without credentials"},
 		{"upstream fragment", Route{Prefix: "/api", Upstreams: []string{"http://localhost#fragment"}}, "without credentials or fragment"},
 		{"relative upstream", Route{Prefix: "/api", Upstreams: []string{"/local"}}, "absolute HTTP(S) URL"},
+		{"negative timeout", Route{Prefix: "/api", Upstreams: []string{"http://localhost"}, ResponseHeaderTimeout: -1}, "cannot be negative"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
