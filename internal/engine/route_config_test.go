@@ -18,6 +18,7 @@ func TestRouteConfigurationRejectsInvalidSnapshots(t *testing.T) {
 		{"relative upstream", Route{Prefix: "/api", Upstreams: []string{"/local"}}, "absolute HTTP(S) URL"},
 		{"negative timeout", Route{Prefix: "/api", Upstreams: []string{"http://localhost"}, ResponseHeaderTimeout: -1}, "cannot be negative"},
 		{"cooldown only", Route{Prefix: "/api", Upstreams: []string{"http://localhost"}, Circuit: CircuitPolicy{Cooldown: 1}}, "must both be positive"},
+		{"duplicate method", Route{Prefix: "/api", Upstreams: []string{"http://localhost"}, AllowedMethods: []string{"GET", "GET"}}, "duplicate allowed method"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
