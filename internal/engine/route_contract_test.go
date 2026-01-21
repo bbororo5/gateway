@@ -31,6 +31,7 @@ func TestRouteRequestContract(t *testing.T) {
 		{"deepest", "GET", "/api/v2/items", "", "GET /service/items /api/v2", "", 204},
 		{"root fallback", "GET", "/other/items", "", "GET /fallback/other/items", "", 204},
 		{"sibling prefix", "GET", "/api/v20/items", "", "GET /plain/api/v20/items", "", 204},
+		{"exact mount", "GET", "/api/v2", "", "GET /service/ /api/v2", "", 204},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
