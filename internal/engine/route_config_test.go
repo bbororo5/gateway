@@ -1,0 +1,28 @@
+package engine
+
+import (
+	"strings"
+	"testing"
+)
+
+func TestRouteConfigurationRejectsInvalidSnapshots(t *testing.T) {
+	tests := []struct {
+		name    string
+		route   Route
+		message string
+	}{
+		{"empty upstreams", Route{Prefix: "/api"}, "at least one upstream"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			eng := New()
+			err := eng.ReplaceRoutes([]Route{tc.route})
+			if err == nil || !strings.Contains(err.Error(), tc.message) {
+				t.Fatalf("got %v, want error containing %q", err, tc.message)
+			}
+			if eng.Ready() {
+				t.Fatal("invalid route became active")
+			}
+		})
+	}
+}
