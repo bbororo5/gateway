@@ -12,6 +12,7 @@ func TestRouteConfigurationRejectsInvalidSnapshots(t *testing.T) {
 		message string
 	}{
 		{"empty upstreams", Route{Prefix: "/api"}, "at least one upstream"},
+		{"duplicate upstream", Route{Prefix: "/api", Upstreams: []string{"http://localhost", "http://localhost"}}, "duplicate upstream"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
