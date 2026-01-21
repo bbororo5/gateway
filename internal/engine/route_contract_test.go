@@ -41,6 +41,7 @@ func TestRouteRequestContract(t *testing.T) {
 		{"blocked write", "POST", "/api/item", "", "", "GET, HEAD", 405},
 		{"nested unrestricted write", "POST", "/api/v2/item", "", "POST /service/item /api/v2", "", 204},
 		{"explicit OPTIONS", "OPTIONS", "/upload/item", "", "OPTIONS /upload/item", "", 204},
+		{"write only", "GET", "/upload/item", "", "", "OPTIONS, PUT", 405},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
