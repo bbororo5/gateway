@@ -36,6 +36,7 @@ func TestRouteRequestContract(t *testing.T) {
 		{"query", "GET", "/api/v2/items?tag=a%2Fb&tag=c", "", "GET /service/items?tag=a%2Fb&tag=c /api/v2", "", 204},
 		{"unicode mount", "GET", "/caf%C3%A9/items/%7e", "", "GET /items/%7e /caf%C3%A9", "", 204},
 		{"spoofed plain prefix", "GET", "/api/item", "/spoof", "GET /plain/api/item", "", 204},
+		{"spoofed mount prefix", "GET", "/api/v2/item", "/spoof", "GET /service/item /api/v2", "", 204},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
