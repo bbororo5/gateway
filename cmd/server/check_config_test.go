@@ -19,6 +19,7 @@ func TestCheckConfigContract(t *testing.T) {
 		{"occupied port", "server: {port: PORT}\ndiscovery: {provider: mock}\n", route, ""},
 		{"relative route file", strings.ReplaceAll(fileConfig, "ROUTE", "routes.yaml"), route, ""},
 		{"absolute route file", fileConfig, route, ""},
+		{"missing route file", fileConfig, "", "load initial route table"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
