@@ -21,6 +21,7 @@ func TestCheckConfigContract(t *testing.T) {
 		{"absolute route file", fileConfig, route, ""},
 		{"missing route file", fileConfig, "", "load initial route table"},
 		{"malformed routes", fileConfig, "routes: [broken", "decode routes"},
+		{"invalid route", fileConfig, "routes: [{prefix: /api, upstreams: [local]}]", "absolute HTTP(S) URL"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
