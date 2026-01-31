@@ -27,6 +27,7 @@ func TestRouteDiagnosticsContract(t *testing.T) {
 		{"ordered and redacted", "GET", false, []engine.Route{{Prefix: "/z", Upstreams: []string{endpoint}}, {Prefix: "/a", Upstreams: []string{endpoint}}}, 200, []string{"/a", "/z"}},
 		{"HEAD probe", "HEAD", false, nil, 200, nil},
 		{"read only", "POST", false, nil, 405, nil},
+		{"private listener", "GET", true, nil, 404, nil},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
