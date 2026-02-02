@@ -13,6 +13,7 @@ func TestSnapshotFailureContract(t *testing.T) {
 	const stable = "routes: [{prefix: /api, upstreams: ['http://localhost']}]\n"
 	cases := []struct{ name, document, want string }{
 		{"deleted file", "", "no such file"},
+		{"oversized", strings.Repeat("#", routeFileLimit+1), "exceeds"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
