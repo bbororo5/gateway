@@ -14,6 +14,7 @@ func TestSnapshotFailureContract(t *testing.T) {
 	cases := []struct{ name, document, want string }{
 		{"deleted file", "", "no such file"},
 		{"oversized", strings.Repeat("#", routeFileLimit+1), "exceeds"},
+		{"duplicate key", "routes: []\nroutes: []", "already defined"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
