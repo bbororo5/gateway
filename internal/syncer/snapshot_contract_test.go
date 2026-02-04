@@ -15,6 +15,7 @@ func TestSnapshotFailureContract(t *testing.T) {
 		{"deleted file", "", "no such file"},
 		{"oversized", strings.Repeat("#", routeFileLimit+1), "exceeds"},
 		{"duplicate key", "routes: []\nroutes: []", "already defined"},
+		{"unknown policy", "routes: [{prefix: /api, upstreams: [http://localhost], rewrite: true}]", "field rewrite not found"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
