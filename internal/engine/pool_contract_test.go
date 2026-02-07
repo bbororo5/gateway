@@ -19,6 +19,13 @@ func TestUpstreamPoolContract(t *testing.T) {
 				t.Fatal("matching routes did not share a pool")
 			}
 		}},
+		{"different timeout", func(t *testing.T, e *Engine, install func(...Route), original *http.Transport) {
+			install(Route{Prefix: "/a", Upstreams: []string{endpoint}}, Route{Prefix: "/b", Upstreams: []string{endpoint}, ResponseHeaderTimeout: time.Second})
+			other := e.routes["/b"].balancer.transport
+			if other == original || other.(*http.Transport).ResponseHeaderTimeout != time.Second {
+				t.Fatal("route did not use its configured timeout")
+			}
+		}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
