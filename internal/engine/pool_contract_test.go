@@ -26,6 +26,14 @@ func TestUpstreamPoolContract(t *testing.T) {
 				t.Fatal("route did not use its configured timeout")
 			}
 		}},
+		{"policy reload", func(t *testing.T, e *Engine, install func(...Route), original *http.Transport) {
+			before := e.routes["/a"].balancer
+			install(Route{Prefix: "/a", Upstreams: []string{endpoint}, AllowedMethods: []string{"POST"}})
+			after := e.routes["/a"].balancer
+			if after == before || after.transport != original {
+				t.Fatal("route did not update while keeping its pool")
+			}
+		}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
