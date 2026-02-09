@@ -34,6 +34,12 @@ func TestUpstreamPoolContract(t *testing.T) {
 				t.Fatal("route did not update while keeping its pool")
 			}
 		}},
+		{"retired timeout", func(t *testing.T, e *Engine, install func(...Route), original *http.Transport) {
+			install(Route{Prefix: "/a", Upstreams: []string{endpoint}, ResponseHeaderTimeout: time.Second})
+			if len(e.transports) != 1 || e.transports[baseline] != nil {
+				t.Fatal("unused timeout pool was retained")
+			}
+		}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
