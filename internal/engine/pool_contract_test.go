@@ -40,6 +40,12 @@ func TestUpstreamPoolContract(t *testing.T) {
 				t.Fatal("unused timeout pool was retained")
 			}
 		}},
+		{"failed transaction", func(t *testing.T, e *Engine, install func(...Route), original *http.Transport) {
+			err := e.ReplaceRoutes([]Route{{Prefix: "/bad", Upstreams: []string{"local"}, ResponseHeaderTimeout: time.Second}})
+			if err == nil || e.transports[baseline] != original || len(e.transports) != 1 {
+				t.Fatal("rejected snapshot changed the pools")
+			}
+		}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
