@@ -46,6 +46,11 @@ func TestUpstreamPoolContract(t *testing.T) {
 				t.Fatal("rejected snapshot changed the pools")
 			}
 		}},
+		{"pool capacity", func(t *testing.T, e *Engine, install func(...Route), original *http.Transport) {
+			if original.MaxIdleConnsPerHost < 32 || original.MaxIdleConns < original.MaxIdleConnsPerHost {
+				t.Fatal("pool cannot retain a full benchmark worker set")
+			}
+		}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
