@@ -21,6 +21,15 @@ func TestRouteStatusContract(t *testing.T) {
 				t.Fatal(w.Code)
 			}
 		}, RouteStatus{Prefix: "/api", Open: 1}},
+		{"half open", Route{Circuit: CircuitPolicy{Threshold: 1, Cooldown: time.Minute}}, func(t *testing.T, e *Engine) {
+			c := &e.routes["/api"].balancer.targets[0].circuit
+			failedAt := time.Now().Add(-2 * time.Minute)
+			generation, ok := c.admit(failedAt)
+			if !ok {
+				t.Fatal("new circuit rejected the initial call")
+			}
+			c.record(generation, failure, failedAt)
+		}, RouteStatus{Prefix: "/api", Probe: 1}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
