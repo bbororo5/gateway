@@ -30,6 +30,17 @@ func TestRouteStatusContract(t *testing.T) {
 			}
 			c.record(generation, failure, failedAt)
 		}, RouteStatus{Prefix: "/api", Probe: 1}},
+		{"reload keeps open", Route{Circuit: CircuitPolicy{Threshold: 1, Cooldown: time.Minute}}, func(t *testing.T, e *Engine) {
+			w := httptest.NewRecorder()
+			e.ServeHTTP(w, httptest.NewRequest("GET", "/api", nil))
+			if w.Code != http.StatusBadGateway {
+				t.Fatal(w.Code)
+			}
+			existing := *e.routes["/api"].configured
+			if err := e.ReplaceRoutes([]Route{existing}); err != nil {
+				t.Fatal(err)
+			}
+		}, RouteStatus{Prefix: "/api", Open: 1}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
