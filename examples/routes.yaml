@@ -8,3 +8,8 @@ routes:
     circuit:
       failure_threshold: 3
       cooldown: 15s
+  - prefix: /catalog
+    allowed_methods: [GET]
+    strip_prefix: true
+    upstreams:
+      - http://127.0.0.1:8081/api/v1
