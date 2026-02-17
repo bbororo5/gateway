@@ -17,8 +17,11 @@ curl http://127.0.0.1:9090/readyz
 ```sh
 export GATEWAY_SIGNING_KEY="$(openssl rand -hex 32)"
 export GATEWAY_CLIENT_KEY="$(openssl rand -hex 24)"
+go run ./cmd/server -check-config -config examples/gateway.yaml
 go run ./cmd/server -config examples/gateway.yaml
 ```
+
+`-check-config`는 환경 변수, 게이트웨이 설정, 초기 라우팅 파일을 함께 검증하고 포트를 열지 않고 종료합니다.
 
 다른 셸에서 요청할 때는 동일한 `GATEWAY_CLIENT_KEY` 값을 사용합니다. 공개 트래픽은 TLS를 종료하는 프록시를 통해 연결하고, 게이트웨이에 직접 접근할 수 있는 네트워크를 제한합니다.
 
@@ -38,6 +41,7 @@ go run ./cmd/server -config examples/gateway.yaml
 - 직접 접속한 클라이언트가 보내는 전달 IP 헤더는 무시합니다. 신뢰하는 프록시만 `server.trusted_proxies`에 등록하고 프록시가 연결 주소를 전달 체인에 추가하고 `X-Forwarded-Proto`를 실제 외부 연결 스킴으로 덮어쓰도록 설정합니다.
 - 속도 제한은 게이트웨이 프로세스별 IP 버킷을 사용합니다. 각 샤드의 클라이언트 수에는 상한이 있습니다.
 - 관리자 주소는 루프백에서만 열립니다. `/livez`는 프로세스 상태, `/readyz`는 라우팅 테이블과 종료 상태, `/metrics`는 요청 수와 처리 시간 및 처리 중인 요청을 제공합니다. 준비 상태는 업스트림에 대한 별도 능동 프로브를 실행하지 않습니다.
+- `GET /routes`는 관리자 포트에서 라우트별 닫힘·열림·복구 대기 서킷 수를 반환합니다. 업스트림 주소는 응답에 포함되지 않습니다.
 - 서킷 브레이커와 속도 제한 상태는 프로세스 안에 저장됩니다.
 
 ```sh
